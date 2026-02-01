@@ -54,7 +54,6 @@ function bootstrap() : void {
 	add_filter( 'map_meta_cap', __NAMESPACE__ . '\\filter_map_meta_cap_for_editing', 10, 4 );
 	add_filter( 'user_has_cap', __NAMESPACE__ . '\\filter_user_has_cap', 10, 4 );
 	add_filter( 'rest_response_link_curies', __NAMESPACE__ . '\\filter_rest_response_link_curies' );
-	add_filter( 'the_author', __NAMESPACE__ . '\\filter_the_author_for_rss' );
 	add_filter( 'comment_moderation_recipients', __NAMESPACE__ . '\\filter_comment_moderation_recipients', 10, 2 );
 	add_filter( 'comment_notification_recipients', __NAMESPACE__ . '\\filter_comment_notification_recipients', 10, 2 );
 	add_filter( 'quick_edit_dropdown_authors_args', __NAMESPACE__ . '\\hide_quickedit_authors' );
@@ -95,6 +94,7 @@ function is_post_type_supported( string $post_type ) : bool {
 /**
  * Filters the display name of the current post's author for RSS feeds.
  *
+ * @deprecated This function is no longer hooked. Use filter_the_author() instead.
  * @param string|null $display_name The author's display name.
  * @return string|null The author's display name.
  */
@@ -812,7 +812,7 @@ function filter_the_author( string $display_name, int $user_id = 0 ) : string {
 	// Existing RSS feed handling.
 	if ( is_feed( 'rss2' ) ) {
 		$post = get_post();
-		if ( ! $post ) {
+		if ( ! $post || ! is_post_type_supported( $post->post_type ) ) {
 			return $display_name;
 		}
 		return get_author_names( $post );
