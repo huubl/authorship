@@ -94,7 +94,7 @@ function is_post_type_supported( string $post_type ) : bool {
 /**
  * Filters the display name of the current post's author for RSS feeds.
  *
- * @deprecated This function is no longer hooked. Use filter_the_author() instead.
+ * @deprecated 0.3.0 Use filter_the_author() instead.
  * @param string|null $display_name The author's display name.
  * @return string|null The author's display name.
  */
