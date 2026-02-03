@@ -950,6 +950,13 @@ function filter_get_the_author_user_description( string $description, int $user_
  * @return array Arguments passed to get_avatar_data().
  */
 function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
+	static $recursion_guard = false;
+
+	// Prevent infinite recursion when get_avatar_url() calls get_avatar_data().
+	if ( $recursion_guard ) {
+		return $args;
+	}
+
 	// Handle block rendering context.
 	if ( doing_filter( 'render_block' ) || doing_action( 'wp_body_open' ) || in_the_loop() ) {
 		$post = get_post();
@@ -978,7 +985,11 @@ function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
 		// Use the first author's user ID for the avatar.
 		$first_author = reset( $authors );
 		$args['found_avatar'] = true;
+
+		// Set recursion guard before calling get_avatar_url().
+		$recursion_guard = true;
 		$args['url'] = get_avatar_url( $first_author->ID );
+		$recursion_guard = false;
 
 		// Update the default URL to use first author as well.
 		if ( isset( $args['default'] ) ) {

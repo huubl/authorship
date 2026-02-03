@@ -68,7 +68,7 @@ function get_authors( WP_Post $post ) : array {
 		}
 		$result = [];
 		wp_cache_set( $cache_key, $result, 'authorship' );
-		return [];
+		return $result;
 	}
 
 	/** @var WP_User[] */
