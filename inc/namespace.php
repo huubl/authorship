@@ -978,8 +978,8 @@ function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
 		// Use the first author's user ID for the avatar.
 		$first_author = reset( $authors );
 		$args['found_avatar'] = true;
-		$args['url'] = get_avatar_url( $first_author->ID, $args );
-		
+		$args['url'] = get_avatar_url( $first_author->ID );
+
 		// Update the default URL to use first author as well.
 		if ( isset( $args['default'] ) ) {
 			$args['url'] = add_query_arg( 'd', $args['default'], $args['url'] );
