@@ -950,13 +950,6 @@ function filter_get_the_author_user_description( string $description, int $user_
  * @return array Arguments passed to get_avatar_data().
  */
 function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
-	static $recursion_guard = false;
-
-	// Prevent infinite recursion when get_avatar_url() calls get_avatar_data().
-	if ( $recursion_guard ) {
-		return $args;
-	}
-
 	// Handle block rendering context.
 	if ( doing_filter( 'render_block' ) || doing_action( 'wp_body_open' ) || in_the_loop() ) {
 		$post = get_post();
@@ -965,14 +958,16 @@ function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
 			return $args;
 		}
 
-		// Only filter when getting avatar for the post author.
-		// This allows explicitly requesting a specific user's avatar.
-		if ( is_numeric( $id_or_email ) && intval( $id_or_email ) !== intval( $post->post_author ) ) {
-			return $args;
-		}
-
-		// If email or object is provided, don't filter unless it matches post_author.
-		if ( ! is_numeric( $id_or_email ) ) {
+		// Only filter when getting avatar for the post author (not a specific user).
+		// When $id_or_email is numeric and matches post_author, or when it's 0/empty.
+		if ( is_numeric( $id_or_email ) ) {
+			$requested_id = intval( $id_or_email );
+			// If requesting a specific user other than post_author, don't filter.
+			if ( $requested_id > 0 && $requested_id !== intval( $post->post_author ) ) {
+				return $args;
+			}
+		} else {
+			// If email or object is provided, don't filter (too complex to match).
 			return $args;
 		}
 
@@ -982,19 +977,17 @@ function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
 			return $args;
 		}
 
-		// Use the first author's user ID for the avatar.
+		// If first author is same as post_author, no need to change anything.
 		$first_author = reset( $authors );
-		$args['found_avatar'] = true;
-
-		// Set recursion guard before calling get_avatar_url().
-		$recursion_guard = true;
-		$args['url'] = get_avatar_url( $first_author->ID );
-		$recursion_guard = false;
-
-		// Update the default URL to use first author as well.
-		if ( isset( $args['default'] ) ) {
-			$args['url'] = add_query_arg( 'd', $args['default'], $args['url'] );
+		if ( intval( $first_author->ID ) === intval( $post->post_author ) ) {
+			return $args;
 		}
+
+		// Use the first author's user ID for the avatar.
+		// Note: Calling get_avatar_url() will re-trigger this filter, but the check above
+		// (line 979-981) will prevent recursion since $first_author->ID !== $post->post_author.
+		$args['found_avatar'] = true;
+		$args['url'] = get_avatar_url( $first_author->ID, $args );
 	}
 
 	return $args;
