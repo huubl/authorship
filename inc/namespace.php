@@ -64,6 +64,7 @@ function bootstrap() : void {
 	add_filter( 'the_author', __NAMESPACE__ . '\\filter_the_author', 10, 2 );
 	add_filter( 'get_the_author_user_url', __NAMESPACE__ . '\\filter_get_the_author_user_url', 10, 2 );
 	add_filter( 'get_the_author_user_description', __NAMESPACE__ . '\\filter_get_the_author_user_description', 10, 2 );
+	add_filter( 'pre_get_avatar_data', __NAMESPACE__ . '\\filter_pre_get_avatar_data', 10, 2 );
 }
 
 /**
@@ -804,6 +805,10 @@ function filter_get_the_author_display_name( string $display_name, int $user_id 
  * This filter already exists in the plugin for RSS feeds, but we extend it
  * to work for all contexts where it makes sense.
  *
+ * The filter applies during block rendering (including core/post-author and core/post-author-name blocks),
+ * in the loop, and during wp_body_open (for FSE templates). This broad application ensures consistent
+ * author display across all contexts where post authors are shown.
+ *
  * @param string $display_name The author's display name.
  * @param int    $user_id      The author's ID (optional, may be 0).
  * @return string The author's display name.
@@ -818,7 +823,10 @@ function filter_the_author( string $display_name, int $user_id = 0 ) : string {
 		return get_author_names( $post );
 	}
 
-	// Handle block rendering context.
+	// Handle block rendering context, loop context, and FSE template context.
+	// - render_block: Catches all block rendering including core/post-author, core/post-author-name
+	// - wp_body_open: Catches FSE template parts that may render author info
+	// - in_the_loop: Catches template tags used in traditional theme loops
 	if ( doing_filter( 'render_block' ) || doing_action( 'wp_body_open' ) || in_the_loop() ) {
 		$post = get_post();
 
@@ -929,4 +937,58 @@ function filter_get_the_author_user_description( string $description, int $user_
 	// Return first author's bio.
 	$first_author = reset( $authors );
 	return get_the_author_meta( 'description', $first_author->ID );
+}
+
+/**
+ * Filters the avatar data for multiple authors.
+ *
+ * For posts with multiple authors, returns the first author's avatar.
+ * This ensures the core/avatar block displays the primary author's avatar.
+ *
+ * @param array      $args        Arguments passed to get_avatar_data(), after processing.
+ * @param int|string $id_or_email The Gravatar to retrieve. Accepts a user ID, email address, or object.
+ * @return array Arguments passed to get_avatar_data().
+ */
+function filter_pre_get_avatar_data( array $args, $id_or_email ) : array {
+	// Handle block rendering context.
+	if ( doing_filter( 'render_block' ) || doing_action( 'wp_body_open' ) || in_the_loop() ) {
+		$post = get_post();
+
+		if ( ! $post || ! is_post_type_supported( $post->post_type ) ) {
+			return $args;
+		}
+
+		// Only filter when getting avatar for the post author (not a specific user).
+		// When $id_or_email is numeric and matches post_author, or when it's 0/empty.
+		if ( is_numeric( $id_or_email ) ) {
+			$requested_id = intval( $id_or_email );
+			// If requesting a specific user other than post_author, don't filter.
+			if ( $requested_id > 0 && $requested_id !== intval( $post->post_author ) ) {
+				return $args;
+			}
+		} else {
+			// If email or object is provided, don't filter (too complex to match).
+			return $args;
+		}
+
+		$authors = get_authors( $post );
+
+		if ( empty( $authors ) ) {
+			return $args;
+		}
+
+		// If first author is same as post_author, no need to change anything.
+		$first_author = reset( $authors );
+		if ( intval( $first_author->ID ) === intval( $post->post_author ) ) {
+			return $args;
+		}
+
+		// Use the first author's user ID for the avatar.
+		// Note: Calling get_avatar_url() will re-trigger this filter, but the check above
+		// (line 979-981) will prevent recursion since $first_author->ID !== $post->post_author.
+		$args['found_avatar'] = true;
+		$args['url'] = get_avatar_url( $first_author->ID, $args );
+	}
+
+	return $args;
 }

@@ -42,13 +42,33 @@ function get_author_ids( WP_Post $post ) : array {
 /**
  * Returns the user objects for the attributed author(s) of the given post.
  *
+ * Uses WordPress object cache to avoid repeated database queries.
+ *
  * @param WP_Post $post The post object.
  * @return WP_User[] Array of user objects.
  */
 function get_authors( WP_Post $post ) : array {
+	$cache_key = 'authorship_authors_' . $post->ID;
+	$cached = wp_cache_get( $cache_key, 'authorship' );
+
+	if ( false !== $cached ) {
+		return $cached;
+	}
+
 	$author_ids = get_author_ids( $post );
 	if ( empty( $author_ids ) ) {
-		return [];
+		// Fallback to post_author if no authors are assigned via taxonomy.
+		if ( $post->post_author ) {
+			$user = get_userdata( $post->post_author );
+			if ( $user ) {
+				$result = [ $user ];
+				wp_cache_set( $cache_key, $result, 'authorship' );
+				return $result;
+			}
+		}
+		$result = [];
+		wp_cache_set( $cache_key, $result, 'authorship' );
+		return $result;
 	}
 
 	/** @var WP_User[] */
@@ -59,6 +79,7 @@ function get_authors( WP_Post $post ) : array {
 		'orderby' => 'include',
 	] );
 
+	wp_cache_set( $cache_key, $users, 'authorship' );
 	return $users;
 }
 
@@ -173,6 +194,9 @@ function set_authors( WP_Post $post, array $authors ) : array {
 	if ( is_wp_error( $terms ) ) {
 		throw new Exception( $terms->get_error_message() );
 	}
+
+	// Clear the cache for this post.
+	wp_cache_delete( 'authorship_authors_' . $post->ID, 'authorship' );
 
 	return $users;
 }
