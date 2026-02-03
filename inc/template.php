@@ -46,8 +46,23 @@ function get_author_ids( WP_Post $post ) : array {
  * @return WP_User[] Array of user objects.
  */
 function get_authors( WP_Post $post ) : array {
+	static $cache = [];
+	
+	if ( isset( $cache[ $post->ID ] ) ) {
+		return $cache[ $post->ID ];
+	}
+	
 	$author_ids = get_author_ids( $post );
 	if ( empty( $author_ids ) ) {
+		// Fallback to post_author if no authors are assigned via taxonomy.
+		if ( $post->post_author ) {
+			$user = get_userdata( $post->post_author );
+			if ( $user ) {
+				$cache[ $post->ID ] = [ $user ];
+				return [ $user ];
+			}
+		}
+		$cache[ $post->ID ] = [];
 		return [];
 	}
 
@@ -59,6 +74,7 @@ function get_authors( WP_Post $post ) : array {
 		'orderby' => 'include',
 	] );
 
+	$cache[ $post->ID ] = $users;
 	return $users;
 }
 
